@@ -118,6 +118,11 @@ public class MovieAnalyzer {
         return m.limit(top_k).map(movie -> movie.Series_Title).collect(Collectors.toList());
     }
 
+    public List<String> searchMovies(String genre, float min_rating, int max_runtime) {
+        return movies.stream().filter(m -> m.Genre.equals(genre) && m.IMDB_Rating > min_rating && m.runTimeInt < max_runtime)
+                .map(movie -> movie.Series_Title).collect(Collectors.toList());
+    }
+
     private class Movie {
         String Poster_Link, Series_Title, Certificate, Runtime, Genre, Overview, Director, Star1, Star2, Star3, Star4;
         int Released_Year, Meta_score, No_of_Votes, Gross, runTimeInt;
