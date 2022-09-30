@@ -1,9 +1,7 @@
 import java.io.BufferedReader;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.*;
-import java.util.regex.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -11,6 +9,9 @@ public class MovieAnalyzer {
 
     public static void main(String[] args) {
         MovieAnalyzer ma = new MovieAnalyzer("resources/imdb_top_500.csv");
+        var temp = ma.getTopStars(80, "gross");
+        System.out.println();
+        System.out.println("John Rhys-Davies".compareTo("Karen Allen"));
 //        csvParse("\"https://m.media-amazon.com/images/M/MV5BOTI5ODc3NzExNV5BMl5BanBnXkFtZTcwNzYxNzQzMw@@._V1_UX67_CR0,0,67,98_AL_.jpg\",V for Vendetta,2005,A,132 min,\"Action, Drama, Sci-Fi\",8.2,\"In a future British tyranny, a shadowy freedom fighter, known only by the alias of \"\"V\"\", plots to overthrow it with the help of a young woman.\",62,James McTeigue,Hugo Weaving,Natalie Portman,Rupert Graves,Stephen Rea,1032749,\"70,511,035\"");
     }
 
@@ -36,10 +37,10 @@ public class MovieAnalyzer {
                 m.Overview = s[7];
                 m.Meta_score = Integer.parseInt(isNotNull(s[8]));
                 m.Director = s[9];
-                m.Star1 = s[10];
-                m.Star2 = s[11];
-                m.Star3 = s[12];
-                m.Star4 = s[13];
+                m.Stars.add(s[10]);
+                m.Stars.add(s[11]);
+                m.Stars.add(s[12]);
+                m.Stars.add(s[13]);
                 m.No_of_Votes = Integer.parseInt(isNotNull(s[14]));
                 m.Gross = Integer.parseInt(isNotNull(s[15]).replaceAll(",", ""));
                 movies.add(m);
@@ -49,28 +50,29 @@ public class MovieAnalyzer {
         }
     }
 
-    private String isNotNull(String s){
+    private String isNotNull(String s) {
         return s == null || s.equals("") ? "-1" : s;
     }
 
     private static String[] csvParse(String s) {
+        s = s.replaceAll("\"\"", "#Truepoint#");
         String[] tmp = s.split(",");
         String[] res = new String[16];
         int index = 0;
         boolean con = false;
         for (String value : tmp) {
             if (con) {
-                if (value.endsWith("\"") && !value.endsWith("\"\"")) {
+                if (value.endsWith("\"")) {
                     res[index++] += ',' + value.substring(0, value.length() - 1);
                     con = false;
                 } else {
                     res[index] += ',' + value;
                 }
             } else {
-                if (value.startsWith("\"") && !value.startsWith("\"\"") && !value.endsWith("\"")) {
+                if (value.startsWith("\"")&& !value.endsWith("\"")) {
                     con = true;
                     res[index] = value.substring(1);
-                } else if (value.startsWith("\"") && !value.startsWith("\"\"") && value.endsWith("\"")) {
+                } else if (value.startsWith("\"") && value.endsWith("\"")) {
                     res[index++] = value.substring(1, value.length() - 1);
                 } else {
                     res[index++] = value;
@@ -79,13 +81,13 @@ public class MovieAnalyzer {
         }
         for (int i = 0; i < res.length; i++) {
             if (res[i] != null)
-                res[i] = res[i].replaceAll("\"\"", "\"");
+                res[i] = res[i].replaceAll("#Truepoint#", "\"");
         }
         return res;
     }
 
     public Map<Integer, Integer> getMovieCountByYear() {
-        return movies.stream().sorted(Comparator.comparing(Movie::getReleased_Year).reversed()).collect(Collectors.toMap(movie -> movie.Released_Year, movie -> movie.Released_Year!=-1 ? 1 : 0, Integer::sum));
+        return movies.stream().sorted(Comparator.comparing(Movie::getReleased_Year).reversed()).collect(Collectors.toMap(movie -> movie.Released_Year, movie -> movie.Released_Year != -1 ? 1 : 0, Integer::sum));
     }
 
     public Map<String, Integer> getMovieCountByGenre() {
@@ -95,12 +97,12 @@ public class MovieAnalyzer {
     public Map<List<String>, Integer> getCoStarCount() {
         return movies.stream().collect(Collectors.toMap(movie -> {
             List<String> li = new ArrayList<>();
-            if (movie.Star1.compareTo(movie.Star2) <= 0) {
-                li.add(movie.Star1);
-                li.add(movie.Star2);
+            if (movie.getStar1().compareTo(movie.getStar2()) <= 0) {
+                li.add(movie.getStar1());
+                li.add(movie.getStar2());
             } else {
-                li.add(movie.Star2);
-                li.add(movie.Star1);
+                li.add(movie.getStar2());
+                li.add(movie.getStar1());
             }
             return li;
         }, movie -> 1, Integer::sum));
@@ -116,19 +118,58 @@ public class MovieAnalyzer {
     }
 
     public List<String> getTopStars(int top_k, String by) {
-        return null;
+        Map<String, List<Double>> starToRank = new HashMap<>();
+        movies.forEach(m -> {
+            m.Stars.forEach(s -> {
+                        starToRank.computeIfAbsent(s, k -> new ArrayList<>());
+                        if (by.equals("rating") && m.IMDB_Rating != -1)
+                            starToRank.get(s).add(m.IMDB_Rating);
+                        if (by.equals("gross") && m.Gross != -1)
+                            starToRank.get(s).add((double) m.Gross);
+                    }
+            );
+        });
+        return starToRank.entrySet().stream().map(m -> {
+            Rank r = new Rank();
+            r.title = m.getKey();
+            r.rank = m.getValue().stream().mapToDouble(Double::doubleValue).average().orElse(0);
+            return r;
+        }).sorted(Rank::compareTo).limit(top_k).map(r -> r.title).toList();
+        //return avgRank.entrySet().stream().sorted(Map.Entry.comparingByValue(Comparator.reverseOrder()).thenComparing(Map.Entry::getKey)).limit(top_k).map(Map.Entry::getKey).toList();
+        //return avgRank.entrySet().stream().sorted(Comparator.comparing(Map.Entry::getValue)).limit(top_k).map(Map.Entry::getKey).toList();
     }
 
     public List<String> searchMovies(String genre, float min_rating, int max_runtime) {
-        return movies.stream().filter(m -> m.Genre.equals(genre) && m.IMDB_Rating > min_rating && m.runTimeInt < max_runtime)
+        return movies.stream().filter(m -> m.Genre.contains(genre) && m.IMDB_Rating > min_rating && m.runTimeInt < max_runtime)
                 .map(movie -> movie.Series_Title).collect(Collectors.toList());
     }
 
-    private class Movie {
-        String Poster_Link, Series_Title, Certificate, Runtime, Overview, Director, Star1, Star2, Star3, Star4;
+    private static class Movie {
+        String Poster_Link, Series_Title, Certificate, Runtime, Overview, Director;
         int Released_Year, Meta_score, No_of_Votes, Gross, runTimeInt;
         List<String> Genre;
+        List<String> Stars = new ArrayList<>();
         double IMDB_Rating;
+
+        public String getStar1() {
+            return Stars.get(0);
+        }
+
+        public String getStar2() {
+            return Stars.get(1);
+        }
+
+        public String getStar3() {
+            return Stars.get(2);
+        }
+
+        public String getStar4() {
+            return Stars.get(3);
+        }
+
+        public double getIMDB_Rating() {
+            return IMDB_Rating;
+        }
 
         public int getReleased_Year() {
             return Released_Year;
@@ -140,6 +181,20 @@ public class MovieAnalyzer {
 
         public int getRunTimeInt() {
             return runTimeInt;
+        }
+    }
+
+    private static class Rank implements Comparable {
+        String title;
+        Double rank;
+
+        @Override
+        public int compareTo(Object r) {
+            if (r instanceof Rank t) {
+                if (rank.compareTo(t.rank) != 0) return -rank.compareTo(t.rank);
+                return title.compareTo(t.title);
+            }
+            return -1;
         }
     }
 
