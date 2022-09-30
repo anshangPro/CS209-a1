@@ -24,36 +24,33 @@ public class MovieAnalyzer {
 
             while (br.ready()) {
                 String[] s = csvParse(br.readLine());
-                for (String s1 : s) {
-                    if (s1 == null || s1.equals("")) con = true;
-                }
-                if (con) {
-                    con = false;
-                    continue;
-                }
                 Movie m = new Movie();
                 m.Poster_Link = s[0];
                 m.Series_Title = s[1];
-                m.Released_Year = Integer.parseInt(s[2]);
+                m.Released_Year = Integer.parseInt(isNotNull(s[2]));
                 m.Certificate = s[3];
                 m.Runtime = s[4];
-                m.runTimeInt = Integer.parseInt(s[4].split(" ")[0]);
-                m.Genre = s[5];
-                m.IMDB_Rating = Double.parseDouble(s[6]);
+                m.runTimeInt = Integer.parseInt(isNotNull(s[4]).split(" ")[0]);
+                m.Genre = Arrays.stream(s[5].split(", *")).toList();
+                m.IMDB_Rating = Double.parseDouble(isNotNull(s[6]));
                 m.Overview = s[7];
-                m.Meta_score = Integer.parseInt(s[8]);
+                m.Meta_score = Integer.parseInt(isNotNull(s[8]));
                 m.Director = s[9];
                 m.Star1 = s[10];
                 m.Star2 = s[11];
                 m.Star3 = s[12];
                 m.Star4 = s[13];
-                m.No_of_Votes = Integer.parseInt(s[14]);
-                m.Gross = Integer.parseInt(s[15].replaceAll(",", ""));
+                m.No_of_Votes = Integer.parseInt(isNotNull(s[14]));
+                m.Gross = Integer.parseInt(isNotNull(s[15]).replaceAll(",", ""));
                 movies.add(m);
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private String isNotNull(String s){
+        return s == null || s.equals("") ? "-1" : s;
     }
 
     private static String[] csvParse(String s) {
@@ -88,11 +85,11 @@ public class MovieAnalyzer {
     }
 
     public Map<Integer, Integer> getMovieCountByYear() {
-        return movies.stream().collect(Collectors.toMap(movie -> movie.Released_Year, movie -> 1, Integer::sum, TreeMap::new));
+        return movies.stream().sorted(Comparator.comparing(Movie::getReleased_Year).reversed()).collect(Collectors.toMap(movie -> movie.Released_Year, movie -> movie.Released_Year!=-1 ? 1 : 0, Integer::sum));
     }
 
     public Map<String, Integer> getMovieCountByGenre() {
-        return movies.stream().collect(Collectors.toMap(movie -> movie.Genre, movie -> 1, Integer::sum, TreeMap::new));
+        return movies.stream().flatMap(movie -> movie.Genre.stream()).collect(Collectors.toMap(g -> g, g -> 1, Integer::sum, TreeMap::new));
     }
 
     public Map<List<String>, Integer> getCoStarCount() {
@@ -118,15 +115,24 @@ public class MovieAnalyzer {
         return m.limit(top_k).map(movie -> movie.Series_Title).collect(Collectors.toList());
     }
 
+    public List<String> getTopStars(int top_k, String by) {
+        return null;
+    }
+
     public List<String> searchMovies(String genre, float min_rating, int max_runtime) {
         return movies.stream().filter(m -> m.Genre.equals(genre) && m.IMDB_Rating > min_rating && m.runTimeInt < max_runtime)
                 .map(movie -> movie.Series_Title).collect(Collectors.toList());
     }
 
     private class Movie {
-        String Poster_Link, Series_Title, Certificate, Runtime, Genre, Overview, Director, Star1, Star2, Star3, Star4;
+        String Poster_Link, Series_Title, Certificate, Runtime, Overview, Director, Star1, Star2, Star3, Star4;
         int Released_Year, Meta_score, No_of_Votes, Gross, runTimeInt;
+        List<String> Genre;
         double IMDB_Rating;
+
+        public int getReleased_Year() {
+            return Released_Year;
+        }
 
         public int getOverview() {
             return Overview.length();
