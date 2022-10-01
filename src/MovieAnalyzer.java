@@ -87,7 +87,15 @@ public class MovieAnalyzer {
     }
 
     public Map<Integer, Integer> getMovieCountByYear() {
-        return movies.stream().sorted(Comparator.comparing(Movie::getReleased_Year).reversed()).collect(Collectors.toMap(movie -> movie.Released_Year, movie -> movie.Released_Year != -1 ? 1 : 0, Integer::sum));
+        Map<Integer, Integer> map = movies.stream().sorted(Comparator.comparing(Movie::getReleased_Year).reversed()).collect(Collectors.toMap(movie -> movie.Released_Year, movie -> movie.Released_Year != -1 ? 1 : 0, Integer::sum, TreeMap::new));
+        Map<Integer, Integer> res = new TreeMap<>(new Comparator<Integer>() {
+            @Override
+            public int compare(Integer o1, Integer o2) {
+                return o2.compareTo(o1);
+            }
+        });
+        res.putAll(map);
+        return res;
     }
 
     public Map<String, Integer> getMovieCountByGenre() {
