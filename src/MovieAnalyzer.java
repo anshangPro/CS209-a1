@@ -81,7 +81,7 @@ public class MovieAnalyzer {
         }
         for (int i = 0; i < res.length; i++) {
             if (res[i] != null)
-                res[i] = res[i].replaceAll("#Truepoint#", "\"");
+                res[i] = res[i].replaceAll("#Truepoint#", "\"\"");
         }
         return res;
     }
@@ -107,17 +107,30 @@ public class MovieAnalyzer {
     }
 
     public Map<List<String>, Integer> getCoStarCount() {
-        return movies.stream().collect(Collectors.toMap(movie -> {
-            List<String> li = new ArrayList<>();
-            if (movie.getStar1().compareTo(movie.getStar2()) <= 0) {
-                li.add(movie.getStar1());
-                li.add(movie.getStar2());
-            } else {
-                li.add(movie.getStar2());
-                li.add(movie.getStar1());
-            }
-            return li;
-        }, movie -> 1, Integer::sum));
+        List<List<String>> pairs = new ArrayList<>();
+        movies.forEach(
+                movie -> {
+                    pairs.add(starToList(movie.getStar1(), movie.getStar2()));
+                    pairs.add(starToList(movie.getStar1(), movie.getStar3()));
+                    pairs.add(starToList(movie.getStar1(), movie.getStar4()));
+                    pairs.add(starToList(movie.getStar2(), movie.getStar3()));
+                    pairs.add(starToList(movie.getStar2(), movie.getStar4()));
+                    pairs.add(starToList(movie.getStar3(), movie.getStar4()));
+                }
+        );
+        return pairs.stream().collect(Collectors.toMap(l -> l, l -> 1, Integer::sum));
+    }
+
+    private List<String> starToList(String star1, String star2) {
+        List<String> li = new ArrayList<>();
+        if (star1.compareTo(star2) <= 0) {
+            li.add(star1);
+            li.add(star2);
+        } else {
+            li.add(star2);
+            li.add(star1);
+        }
+        return li;
     }
 
     public List<String> getTopMovies(int top_k, String by) {
@@ -125,7 +138,11 @@ public class MovieAnalyzer {
         if (by.equals("runtime"))
             m = m.sorted(Comparator.comparing(Movie::getRunTimeInt).reversed().thenComparing(m2 -> m2.Series_Title));
         if (by.equals("overview"))
-            m = m.sorted(Comparator.comparing(Movie::getOverview).reversed().thenComparing(m2 -> m2.Series_Title));
+            m = m.sorted((m1, m2) -> {
+                if (m1.Overview.length() != m2.Overview.length()) {
+                    return m2.Overview.length() - m1.Overview.length();
+                } else return m1.Series_Title.compareTo(m2.Series_Title);
+            });
         return m.limit(top_k).map(movie -> movie.Series_Title).collect(Collectors.toList());
     }
 
@@ -146,7 +163,10 @@ public class MovieAnalyzer {
             r.title = m.getKey();
             r.rank = m.getValue().stream().mapToDouble(Double::doubleValue).average().orElse(0);
             return r;
-        }).sorted(Rank::compareTo).limit(top_k).map(r -> r.title).toList();
+        }).sorted((s1, s2) -> {
+            if (!s1.rank.equals(s2.rank)) return s2.rank.compareTo(s1.rank);
+            else return s1.title.compareTo(s2.title);
+        }).limit(top_k).map(r -> r.title).toList();
         //return avgRank.entrySet().stream().sorted(Map.Entry.comparingByValue(Comparator.reverseOrder()).thenComparing(Map.Entry::getKey)).limit(top_k).map(Map.Entry::getKey).toList();
         //return avgRank.entrySet().stream().sorted(Comparator.comparing(Map.Entry::getValue)).limit(top_k).map(Map.Entry::getKey).toList();
     }
