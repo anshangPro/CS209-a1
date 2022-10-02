@@ -99,7 +99,11 @@ public class MovieAnalyzer {
     }
 
     public Map<String, Integer> getMovieCountByGenre() {
-        return movies.stream().flatMap(movie -> movie.Genre.stream()).collect(Collectors.toMap(g -> g, g -> 1, Integer::sum, TreeMap::new));
+        Map<String, Integer> map = movies.stream().flatMap(movie -> movie.Genre.stream()).collect(Collectors.toMap(g -> g, g -> 1, Integer::sum, TreeMap::new));
+        Map<String, Integer> res = new LinkedHashMap<>();
+        map.entrySet().stream().sorted(Comparator.comparing(Map.Entry::getValue, Comparator.reverseOrder()))
+                .forEach(e -> res.put(e.getKey(), e.getValue()));
+        return res;
     }
 
     public Map<List<String>, Integer> getCoStarCount() {
