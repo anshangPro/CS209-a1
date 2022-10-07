@@ -1,6 +1,7 @@
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -8,7 +9,10 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -27,7 +31,7 @@ public class MovieAnalyzer {
    */
   public MovieAnalyzer(String datasetPath) {
     try {
-      BufferedReader br = new BufferedReader(new FileReader(datasetPath));
+      BufferedReader br = new BufferedReader(new FileReader(datasetPath, StandardCharsets.UTF_8));
       br.readLine();
 
       while (br.ready()) {
@@ -61,34 +65,18 @@ public class MovieAnalyzer {
     return s == null || s.equals("") ? "-1" : s;
   }
 
+  static Pattern partial =
+      Pattern.compile("(\"(?:[^\"]|\"\")*\"|(?:[^\",]|\"\")*?)(?:,|$)");
+
   private static String[] csvParse(String s) {
-    s = s.replaceAll("\"\"", "#Truepoint#");
-    String[] tmp = s.split(",");
     String[] res = new String[16];
-    int index = 0;
-    boolean con = false;
-    for (String value : tmp) {
-      if (con) {
-        if (value.endsWith("\"")) {
-          res[index++] += ',' + value.substring(0, value.length() - 1);
-          con = false;
-        } else {
-          res[index] += ',' + value;
-        }
-      } else {
-        if (value.startsWith("\"") && !value.endsWith("\"")) {
-          con = true;
-          res[index] = value.substring(1);
-        } else if (value.startsWith("\"") && value.endsWith("\"")) {
-          res[index++] = value.substring(1, value.length() - 1);
-        } else {
-          res[index++] = value;
-        }
-      }
-    }
+    Matcher matcher = partial.matcher(s);
     for (int i = 0; i < res.length; i++) {
-      if (res[i] != null) {
-        res[i] = res[i].replaceAll("#Truepoint#", "\"\"");
+      if (matcher.find()) {
+        res[i] = matcher.group(1);
+        if (res[i].startsWith("\"")) {
+          res[i] = res[i].substring(1, res[i].length() - 1);
+        }
       }
     }
     return res;
@@ -103,7 +91,7 @@ public class MovieAnalyzer {
     Map<Integer, Integer> map = movies.stream()
         .sorted(Comparator.comparing(Movie::getReleasedYear).reversed())
         .collect(Collectors.toMap(
-            movie -> movie.releasedYear, movie -> movie.releasedYear != -1 ? 1 : 0,
+            movie -> movie.releasedYear, movie -> (movie.releasedYear != -1) ? 1 : 0,
             Integer::sum, TreeMap::new
         ));
     Map<Integer, Integer> res = new TreeMap<>(Comparator.reverseOrder());
@@ -120,8 +108,13 @@ public class MovieAnalyzer {
     Map<String, Integer> map = movies.stream().flatMap(movie -> movie.genre.stream())
         .collect(Collectors.toMap(g -> g, g -> 1, Integer::sum, TreeMap::new));
     Map<String, Integer> res = new LinkedHashMap<>();
-    map.entrySet().stream().sorted(Map.Entry.comparingByValue(Comparator.reverseOrder()))
-        .forEach(e -> res.put(e.getKey(), e.getValue()));
+    map.entrySet().stream().sorted((e1, e2) -> {
+      if (!Objects.equals(e1.getValue(), e2.getValue())) {
+        return e2.getValue().compareTo(e1.getValue());
+      } else {
+        return e1.getKey().compareTo(e2.getKey());
+      }
+    }).forEach(e -> res.put(e.getKey(), e.getValue()));
     return res;
   }
 
@@ -193,6 +186,9 @@ public class MovieAnalyzer {
     Map<String, List<Double>> starToRank = new HashMap<>();
     movies.forEach(m -> m.stars.forEach(s -> {
       starToRank.computeIfAbsent(s, k -> new ArrayList<>());
+      if (by.equals("rating") && m.imdbRating != -1) {
+        starToRank.get(s).add(m.imdbRating);
+      }
       if (by.equals("gross") && m.gross != -1) {
         starToRank.get(s).add((double) m.gross);
       }
