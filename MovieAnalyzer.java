@@ -35,7 +35,7 @@ public class MovieAnalyzer {
       br.readLine();
 
       while (br.ready()) {
-        String[] s = csvParse(br.readLine());
+                String[] s = csvParse(br.readLine());
         Movie m = new Movie();
         m.posterLink = s[0];
         m.seriesTitle = s[1];
